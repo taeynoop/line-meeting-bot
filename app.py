@@ -8,17 +8,17 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-
+ 
 # ===== ตั้งค่า =====
 CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 DATA_FILE = "meetings.json"
 REMIND_BEFORE_MIN = 30  # แจ้งเตือนล่วงหน้ากี่นาที
-
+ 
 app = Flask(__name__)
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
-
+ 
 # ===== จัดการไฟล์ JSON =====
 def load_meetings():
     if not os.path.exists(DATA_FILE):
@@ -28,11 +28,11 @@ def load_meetings():
             return json.load(f)
     except Exception:
         return []
-
+ 
 def save_meetings(meetings):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(meetings, f, ensure_ascii=False, indent=2)
-
+ 
 # ===== แปลงข้อความเป็นนัดหมาย =====
 THAI_MONTHS = {
     "ม.ค.": 1, "มกราคม": 1, "มค": 1,
@@ -48,7 +48,7 @@ THAI_MONTHS = {
     "พ.ย.": 11, "พฤศจิกายน": 11, "พย": 11,
     "ธ.ค.": 12, "ธันวาคม": 12, "ธค": 12,
 }
-
+ 
 def parse_meeting(text):
     """แปลงข้อความเช่น 'นัดประชุม Sprint 3 พค 10:00 ห้อง A' เป็น dict"""
     # หาเวลา HH:MM หรือ HH.MM (รับทั้ง : และ .)
@@ -57,12 +57,12 @@ def parse_meeting(text):
         return None, "ไม่พบเวลา (เช่น 10:00 หรือ 10.00)"
     hour = int(time_match.group(1))
     minute = int(time_match.group(2))
-
+ 
     # หาวันที่
     day = None
     month = None
     year = datetime.now().year
-
+ 
     # ลองหารูปแบบ "3 พค" หรือ "3 พ.ค."
     for m_text, m_num in THAI_MONTHS.items():
         pattern = r"(\d{1,2})\s*" + re.escape(m_text)
@@ -71,7 +71,7 @@ def parse_meeting(text):
             day = int(m.group(1))
             month = m_num
             break
-
+ 
     # ถ้าไม่เจอ ลอง "3/5" หรือ "3-5"
     if day is None:
         date_match = re.search(r"(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?", text)
@@ -81,10 +81,10 @@ def parse_meeting(text):
             if date_match.group(3):
                 y = int(date_match.group(3))
                 year = y + 2000 if y < 100 else y
-
+ 
     if day is None or month is None:
         return None, "ไม่พบวันที่ (เช่น 3 พค หรือ 3/5)"
-
+ 
     # สร้าง datetime
     try:
         dt = datetime(year, month, day, hour, minute)
@@ -93,11 +93,11 @@ def parse_meeting(text):
             dt = dt.replace(year=year + 1)
     except ValueError as e:
         return None, f"วันที่ไม่ถูกต้อง: {e}"
-
+ 
     # หาห้อง (คำหลัง "ห้อง")
     room_match = re.search(r"ห้อง\s*(\S+)", text)
     room = room_match.group(1) if room_match else "-"
-
+ 
     # ลบคำว่า "นัดประชุม" และวันเวลาออก เอาที่เหลือเป็นเรื่อง
     topic = text
     topic = re.sub(r"^(นัด|นัดประชุม|ประชุม|เพิ่ม)", "", topic).strip()
@@ -110,14 +110,14 @@ def parse_meeting(text):
     topic = re.sub(r"\s+", " ", topic).strip()
     if not topic:
         topic = "ประชุม"
-
+ 
     return {
         "topic": topic,
         "datetime": dt.strftime("%Y-%m-%d %H:%M"),
         "room": room,
         "reminded": False,
     }, None
-
+ 
 # ===== ตัวจับเวลาแจ้งเตือน =====
 # เก็บ user_id ของคนใช้บอท (จะถูกอัปเดตเมื่อมีคนส่งข้อความเข้ามา)
 def add_subscriber(user_id):
@@ -133,7 +133,7 @@ def add_subscriber(user_id):
         subs.append(user_id)
         with open(subs_file, "w", encoding="utf-8") as f:
             json.dump(subs, f)
-
+ 
 def get_subscribers():
     if not os.path.exists("subscribers.json"):
         return []
@@ -142,7 +142,7 @@ def get_subscribers():
             return json.load(f)
     except Exception:
         return []
-
+ 
 def reminder_loop():
     """เช็คทุก 1 นาทีว่ามีนัดที่ใกล้ถึงเวลาไหม"""
     while True:
@@ -176,7 +176,7 @@ def reminder_loop():
         except Exception as e:
             print(f"reminder_loop error: {e}")
         time.sleep(60)
-
+ 
 # ===== Webhook =====
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -187,17 +187,17 @@ def callback():
     except InvalidSignatureError:
         abort(400)
     return "OK"
-
+ 
 @app.route("/")
 def index():
     return "Bot is running!"
-
+ 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     add_subscriber(user_id)
     text = event.message.text.strip()
-
+ 
     # คำสั่งต่างๆ
     if text in ["ดู", "รายการ", "list", "นัดหมาย"]:
         meetings = load_meetings()
@@ -213,7 +213,7 @@ def handle_message(event):
             reply = "\n".join(lines)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
-
+ 
     if text.startswith("ลบ"):
         # ลบนัด: "ลบ 1"
         num_match = re.search(r"\d+", text)
@@ -235,7 +235,7 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token,
                 TextSendMessage(text="ไม่พบลำดับนี้"))
         return
-
+ 
     if text in ["ช่วย", "help", "วิธีใช้"]:
         help_text = (
             "📖 วิธีใช้บอท:\n"
@@ -247,7 +247,7 @@ def handle_message(event):
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
-
+ 
     # ลองแปลงเป็นนัด
     meeting, err = parse_meeting(text)
     if meeting:
@@ -268,7 +268,7 @@ def handle_message(event):
             "พิมพ์ 'ช่วย' เพื่อดูวิธีใช้"
         )
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-
+ 
 # ===== เริ่มทำงาน =====
 if __name__ == "__main__":
     # เริ่มตัวจับเวลาในเธรดแยก
