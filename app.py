@@ -107,6 +107,9 @@ def parse_meeting(text):
         topic = re.sub(r"\d{1,2}\s*" + re.escape(m_text), "", topic)
     topic = re.sub(r"\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?", "", topic)
     topic = re.sub(r"ห้อง\s*\S+", "", topic)
+    # ลบคำเชื่อมที่ไม่จำเป็น (ภาษาไทยใช้ \b ไม่ได้ ต้องใช้วิธีแทนตรงๆ)
+    for word in ["วันที่", "เวลา", "วัน"]:
+        topic = topic.replace(word, " ")
     topic = re.sub(r"\s+", " ", topic).strip()
     if not topic:
         topic = "ประชุม"
