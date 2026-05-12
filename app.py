@@ -51,10 +51,10 @@ THAI_MONTHS = {
 
 def parse_meeting(text):
     """แปลงข้อความเช่น 'นัดประชุม Sprint 3 พค 10:00 ห้อง A' เป็น dict"""
-    # หาเวลา HH:MM
-    time_match = re.search(r"(\d{1,2}):(\d{2})", text)
+    # หาเวลา HH:MM หรือ HH.MM (รับทั้ง : และ .)
+    time_match = re.search(r"(\d{1,2})[:.](\d{2})", text)
     if not time_match:
-        return None, "ไม่พบเวลา (เช่น 10:00)"
+        return None, "ไม่พบเวลา (เช่น 10:00 หรือ 10.00)"
     hour = int(time_match.group(1))
     minute = int(time_match.group(2))
 
