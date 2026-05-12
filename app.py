@@ -3,7 +3,7 @@ import json
 import re
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -14,6 +14,11 @@ CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 DATA_FILE = "meetings.json"
 REMIND_BEFORE_MIN = 30  # แจ้งเตือนล่วงหน้ากี่นาที
+TZ = timezone(timedelta(hours=7))  # เวลาไทย UTC+7
+ 
+def now_th():
+    """คืนค่าเวลาปัจจุบันตามเวลาไทย (naive datetime)"""
+    return datetime.now(TZ).replace(tzinfo=None)
  
 app = Flask(__name__)
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
@@ -61,7 +66,7 @@ def parse_meeting(text):
     # หาวันที่
     day = None
     month = None
-    year = datetime.now().year
+    year = now_th().year
  
     # ลองหารูปแบบ "3 พค" หรือ "3 พ.ค."
     for m_text, m_num in THAI_MONTHS.items():
@@ -89,7 +94,7 @@ def parse_meeting(text):
     try:
         dt = datetime(year, month, day, hour, minute)
         # ถ้าวันที่ผ่านไปแล้วในปีนี้ ให้เป็นปีหน้า
-        if dt < datetime.now():
+        if dt < now_th():
             dt = dt.replace(year=year + 1)
     except ValueError as e:
         return None, f"วันที่ไม่ถูกต้อง: {e}"
@@ -151,7 +156,7 @@ def reminder_loop():
     while True:
         try:
             meetings = load_meetings()
-            now = datetime.now()
+            now = now_th()
             changed = False
             for m in meetings:
                 if m.get("reminded"):
@@ -205,7 +210,7 @@ def handle_message(event):
     if text in ["ดู", "รายการ", "list", "นัดหมาย"]:
         meetings = load_meetings()
         upcoming = [m for m in meetings
-                    if datetime.strptime(m["datetime"], "%Y-%m-%d %H:%M") >= datetime.now()]
+                    if datetime.strptime(m["datetime"], "%Y-%m-%d %H:%M") >= now_th()]
         upcoming.sort(key=lambda x: x["datetime"])
         if not upcoming:
             reply = "ยังไม่มีนัดหมายที่กำลังจะมาถึง"
@@ -226,7 +231,7 @@ def handle_message(event):
         idx = int(num_match.group(0)) - 1
         meetings = load_meetings()
         upcoming = [m for m in meetings
-                    if datetime.strptime(m["datetime"], "%Y-%m-%d %H:%M") >= datetime.now()]
+                    if datetime.strptime(m["datetime"], "%Y-%m-%d %H:%M") >= now_th()]
         upcoming.sort(key=lambda x: x["datetime"])
         if 0 <= idx < len(upcoming):
             target = upcoming[idx]
